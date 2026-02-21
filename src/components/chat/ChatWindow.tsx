@@ -309,6 +309,16 @@ export default function ChatWindow() {
           </div>
         ) : (
           messages.map((msg, i) => {
+            if (msg.type === "system") {
+              return (
+                <div key={msg._id} className="flex justify-center my-6">
+                  <div className="bg-primary/5 text-primary/80 px-5 py-2 rounded-full text-[13px] font-bold tracking-wide border border-primary/10 shadow-sm backdrop-blur-md">
+                    {msg.content}
+                  </div>
+                </div>
+              );
+            }
+
             const isMe = msg.sender?.clerkId === clerkUser?.id;
             const showAvatar = !isMe && (i === 0 || messages[i - 1].senderId !== msg.senderId);
             const isHovered = hoveredMsgId === msg._id;
@@ -391,7 +401,7 @@ export default function ChatWindow() {
                     )}
 
                     <div className={`px-5 py-3 rounded-2xl shadow-sm transition-all duration-300 hover:shadow-md ${isMe
-                      ? "bg-gradient-to-br from-indigo-600 to-primary text-white rounded-tr-none"
+                      ? "bg-gradient-to-br from-rose-500 to-orange-500 text-white rounded-tr-none shadow-orange-500/20 shadow-lg"
                       : "bg-card text-foreground rounded-tl-none border border-border"
                       } ${msg.isDeleted ? "opacity-50 grayscale" : ""}`}>
                       <p className={`text-[15px] leading-relaxed ${msg.isDeleted ? "italic font-medium" : ""}`}>

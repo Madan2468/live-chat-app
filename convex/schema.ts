@@ -31,7 +31,7 @@ export default defineSchema({
     conversationId: v.id("conversations"),
     senderId: v.id("users"),
     content: v.string(),
-    type: v.union(v.literal("text"), v.literal("image")),
+    type: v.union(v.literal("text"), v.literal("image"), v.literal("system")),
     isDeleted: v.boolean(),
   })
     .index("by_conversationId", ["conversationId"]),

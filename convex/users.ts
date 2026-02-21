@@ -19,6 +19,8 @@ export const store = mutation({
       .withIndex("by_clerkId", (q) => q.eq("clerkId", args.clerkId))
       .unique();
 
+    let currentUserId;
+
     if (user !== null) {
       if (user.name !== args.name || user.image !== args.image) {
         await ctx.db.patch(user._id, {
@@ -26,16 +28,58 @@ export const store = mutation({
           image: args.image,
         });
       }
-      return user._id;
+      currentUserId = user._id;
+    } else {
+      currentUserId = await ctx.db.insert("users", {
+        clerkId: args.clerkId,
+        name: args.name,
+        email: args.email,
+        image: args.image,
+        isOnline: true,
+      });
     }
 
-    return await ctx.db.insert("users", {
-      clerkId: args.clerkId,
-      name: args.name,
-      email: args.email,
-      image: args.image,
-      isOnline: true,
-    });
+    // Automatically join or create Global Chat
+    let globalChat = await ctx.db
+      .query("conversations")
+      .filter((q) => q.eq(q.field("name"), "Global Chat"))
+      .first();
+
+    let conversationId;
+    if (globalChat) {
+      conversationId = globalChat._id;
+    } else {
+      conversationId = await ctx.db.insert("conversations", {
+        name: "Global Chat",
+        isGroup: true,
+        adminId: currentUserId,
+      });
+    }
+
+    // Add to members
+    const isMember = await ctx.db
+      .query("conversationMembers")
+      .withIndex("by_conversation_and_user", (q) =>
+        q.eq("conversationId", conversationId).eq("userId", currentUserId)
+      )
+      .unique();
+
+    if (!isMember) {
+      await ctx.db.insert("conversationMembers", {
+        conversationId,
+        userId: currentUserId,
+      });
+
+      await ctx.db.insert("messages", {
+        conversationId,
+        senderId: currentUserId,
+        content: `${args.name} joined the chat 🎉`,
+        type: "system",
+        isDeleted: false,
+      });
+    }
+
+    return currentUserId;
   },
 });
 
@@ -73,14 +117,15 @@ export const searchUsers = query({
       return [];
     }
 
-    const users = await ctx.db
-      .query("users")
-      .withIndex("by_name", (q) =>
-        q.gte("name", args.query).lte("name", args.query + "\uf8ff")
-      )
-      .collect();
+    const users = await ctx.db.query("users").collect();
+    const lowerQuery = args.query.toLowerCase();
 
-    return users.filter((u) => u.clerkId !== identity.subject);
+    return users.filter(
+      (u) =>
+        u.clerkId !== identity.subject &&
+        (u.name.toLowerCase().includes(lowerQuery) ||
+          u.email.toLowerCase().includes(lowerQuery))
+    );
   },
 });
 

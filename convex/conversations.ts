@@ -280,5 +280,15 @@ export const addGroupMember = mutation({
       conversationId: args.conversationId,
       userId: args.userId,
     });
+
+    const addedUser = await ctx.db.get(args.userId);
+
+    await ctx.db.insert("messages", {
+      conversationId: args.conversationId,
+      senderId: me._id,
+      content: `${addedUser?.name || "Someone"} was added by ${me.name}.`,
+      type: "system",
+      isDeleted: false,
+    });
   },
 });
