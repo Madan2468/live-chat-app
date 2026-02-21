@@ -145,3 +145,15 @@ export const setUserOnlineStatus = mutation({
     }
   },
 });
+
+export const __diagUsers = query({
+  handler: async (ctx) => {
+    const users = await ctx.db.query("users").collect();
+    const badUsers = users.filter(u => typeof u.name !== "string" || typeof u.email !== "string");
+    return {
+      total: users.length,
+      badUsers,
+      sample: users.slice(0, 3)
+    };
+  }
+});
