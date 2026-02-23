@@ -6,20 +6,22 @@ A modern, full-stack real-time chat application built with **Next.js**, **Convex
 
 ## ✨ Features
 
-- 🔐 **Authentication** — Sign in / Sign up powered by Clerk (Google, GitHub, email)
-- 💬 **Real-time Messaging** — Instant message delivery using Convex live queries (no polling)
-- 👥 **Group Chats** — Create groups, add/remove members, manage conversations
-- 😄 **Emoji Reactions** — React to any message with quick emojis or the full emoji picker
-- ⌨️ **Typing Indicators** — See when someone is typing in real-time
-- 🟢 **Online Presence** — Live online/offline status for every user
-- 🔔 **Unread Badges** — Animated unread message count per conversation
-- 🗓️ **Date Dividers** — Messages grouped by Today / Yesterday / date
-- 💡 **Conversation Starters** — Clickable ice-breaker suggestions on empty chats
-- 🌙 **Dark / Light Mode** — Smooth animated theme toggle with tooltip
-- 🗑️ **Soft Delete** — Delete your own messages (shows "This message was deleted")
-- 👤 **User Profile Panel** — Slide-in panel with gradient cover, online status
-- 🔍 **User Search** — Search all registered users and start a DM instantly
-- 📱 **Responsive Design** — Works on mobile and desktop
+| # | Feature | Details |
+|---|---|---|
+| 1 | 🔐 **Authentication** | Clerk-powered sign-up/login (email + social). Avatar & name displayed. User profiles stored in Convex for discovery. |
+| 2 | 🔍 **User Search** | Shows all users (excluding yourself). Search bar filters by name as you type. Click to open or create a DM. |
+| 3 | 💬 **Direct Messages** | Private 1-on-1 conversations. Real-time via Convex subscriptions. Sidebar previews the latest message. |
+| 4 | 🕐 **Smart Timestamps** | Today → `2:34 PM` · Same year → `Feb 15, 2:34 PM` · Older → `Feb 15, 2024, 2:34 PM` |
+| 5 | 🫙 **Empty States** | Helpful messages for: no conversations, no messages (with conversation starter chips), no search results. |
+| 6 | 📱 **Responsive Layout** | Desktop: sidebar + chat side-by-side. Mobile: list view by default → full-screen chat with back button. |
+| 7 | 🟢 **Online / Offline Status** | Green indicator next to online users. Updates in real-time as users open or close the app. |
+| 8 | ⌨️ **Typing Indicator** | Shows "Alex is typing…". Disappears after **2 seconds** of inactivity or when message is sent. |
+| 9 | 🔔 **Unread Count** | Animated badge per conversation. Cleared automatically when the conversation is opened. |
+| 10 | ⬇️ **Smart Auto-Scroll** | Auto-scrolls to new messages. If scrolled up, shows "↓ New messages" button instead. |
+| 11 | 🗑️ **Delete Messages** | Delete your own messages. Shows *"This message was deleted"* for all users (soft delete). |
+| 12 | 😄 **Reactions** | React with 👍 ❤️ 😂 😮 😢 🔥 or full emoji picker. Click again to remove. Shows counts. |
+| 13 | ⚠️ **Error Handling** | Skeleton loaders & spinners while loading. Failed sends show an error banner with **Retry** + **Dismiss**. |
+| 14 | 👥 **Group Chat** | Create groups with a name and multiple members. All members see messages in real-time. Member count in sidebar. |
 
 ---
 
