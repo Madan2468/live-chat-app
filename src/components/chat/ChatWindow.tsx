@@ -69,8 +69,11 @@ export default function ChatWindow() {
     name?: string; email?: string; image?: string; isOnline?: boolean;
   } | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const [failedMessage, setFailedMessage] = useState<string | null>(null);
 
   const menuRef = useRef<HTMLDivElement>(null);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -102,16 +105,21 @@ export default function ChatWindow() {
     }
   }, [conversationId, messages, markAsRead]);
 
-  const handleSend = async (e?: React.FormEvent) => {
+  const handleSend = async (e?: React.FormEvent, retryContent?: string) => {
     e?.preventDefault();
-    if (!message.trim() || !conversationId) return;
-    const content = message;
-    setMessage("");
+    const content = retryContent ?? message;
+    if (!content.trim() || !conversationId) return;
+    if (!retryContent) setMessage("");
+    setSendError(null);
+    setFailedMessage(null);
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     setTyping({ conversationId: conversationId as any, isTyping: false });
     try {
       await sendMessage({ conversationId: conversationId as any, content, type: "text" });
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to send message", err);
+      setFailedMessage(content);
+      setSendError(err?.message ?? "Failed to send. Please retry.");
     }
   };
 
@@ -119,7 +127,15 @@ export default function ChatWindow() {
     const val = e.target.value;
     if (val.length > MAX_CHARS) return;
     setMessage(val);
+    // Set typing true immediately
     setTyping({ conversationId: conversationId as any, isTyping: val.length > 0 });
+    // Clear typing after 2s of inactivity
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    if (val.length > 0) {
+      typingTimeoutRef.current = setTimeout(() => {
+        setTyping({ conversationId: conversationId as any, isTyping: false });
+      }, 2000);
+    }
   };
 
   const openProfile = (user: { name?: string; email?: string; image?: string; isOnline?: boolean }) => {
@@ -544,6 +560,25 @@ export default function ChatWindow() {
           <ArrowDown className="h-4 w-4" />
           New messages
         </button>
+      )}
+
+      {/* ─── Send Error Banner ─── */}
+      {sendError && (
+        <div className="mx-4 mb-2 flex items-center gap-3 px-4 py-3 bg-destructive/10 border border-destructive/20 rounded-2xl text-sm animate-in slide-in-from-bottom-2 duration-300">
+          <span className="text-destructive font-semibold flex-1 truncate">⚠ {sendError}</span>
+          <button
+            onClick={() => handleSend(undefined, failedMessage ?? undefined)}
+            className="shrink-0 px-3 py-1.5 bg-destructive text-white rounded-xl text-xs font-black hover:bg-destructive/90 transition-colors active:scale-95"
+          >
+            Retry
+          </button>
+          <button
+            onClick={() => { setSendError(null); setFailedMessage(null); }}
+            className="shrink-0 text-destructive/60 hover:text-destructive transition-colors font-bold text-xs"
+          >
+            Dismiss
+          </button>
+        </div>
       )}
 
       {/* ─── Input Area ─── */}
