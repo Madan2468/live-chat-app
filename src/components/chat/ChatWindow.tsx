@@ -17,6 +17,7 @@ import {
   UserPlus,
   Trash,
   Sparkles,
+  Lightbulb,
 } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
 import { useAutoScroll } from "@/hooks/useAutoScroll";
@@ -30,6 +31,25 @@ import { isSameDay } from "date-fns";
 
 const QUICK_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🔥"];
 const MAX_CHARS = 1000;
+
+/** Conversation starter suggestions */
+const DM_STARTERS = [
+  { emoji: "👋", text: "Hey! How's it going?" },
+  { emoji: "☕", text: "Got time for a quick chat?" },
+  { emoji: "🎉", text: "Great to connect with you!" },
+  { emoji: "🤔", text: "What are you working on lately?" },
+  { emoji: "😄", text: "Tell me something fun about yourself!" },
+  { emoji: "🚀", text: "What's your favourite project so far?" },
+];
+
+const GROUP_STARTERS = [
+  { emoji: "👋", text: "Hey everyone!" },
+  { emoji: "📋", text: "What's on everyone's agenda today?" },
+  { emoji: "💡", text: "Anyone have ideas to share?" },
+  { emoji: "🎯", text: "Let's get things started!" },
+  { emoji: "🙌", text: "Happy to be here with you all!" },
+  { emoji: "📣", text: "Quick check-in — how is everyone?" },
+];
 
 export default function ChatWindow() {
   const { conversationId } = useParams();
@@ -221,10 +241,10 @@ export default function ChatWindow() {
               <div className="flex items-center gap-1.5 mt-0.5">
                 <div
                   className={`h-1.5 w-1.5 rounded-full ${conversation.isGroup
-                      ? "bg-emerald-500"
-                      : conversation.otherUser?.isOnline
-                        ? "bg-green-500"
-                        : "bg-muted-foreground/40"
+                    ? "bg-emerald-500"
+                    : conversation.otherUser?.isOnline
+                      ? "bg-green-500"
+                      : "bg-muted-foreground/40"
                     }`}
                 />
                 <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">
@@ -292,14 +312,17 @@ export default function ChatWindow() {
         onClick={() => { setShowMsgEmojiPickerFor(null); setHoveredMsgId(null); setShowMenuDropdown(false); }}
       >
         {messages.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-center space-y-6 animate-in fade-in zoom-in duration-500">
+          <div className="h-full flex flex-col items-center justify-center text-center space-y-8 animate-in fade-in zoom-in duration-500 px-4">
+            {/* Floating icon */}
             <div className="relative">
               <div className="p-8 bg-gradient-to-br from-primary/10 to-violet-500/10 rounded-full border-2 border-primary/20 animate-float">
                 <Sparkles className="h-12 w-12 text-primary" />
               </div>
               <div className="absolute inset-0 blur-3xl bg-primary/15 -z-10 rounded-full" />
             </div>
-            <div className="max-w-[260px]">
+
+            {/* Heading */}
+            <div className="max-w-[280px]">
               <p className="text-xl font-black text-foreground">Start the conversation!</p>
               <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
                 Say hello to{" "}
@@ -307,6 +330,43 @@ export default function ChatWindow() {
                   {conversation.isGroup ? conversation.name : conversation.otherUser?.name}
                 </span>
                 .
+              </p>
+            </div>
+
+            {/* Conversation starter chips */}
+            <div className="w-full max-w-sm">
+              <div className="flex items-center gap-2 mb-3 justify-center">
+                <Lightbulb className="h-3.5 w-3.5 text-amber-500" />
+                <span className="text-[11px] font-black text-muted-foreground uppercase tracking-widest">
+                  Conversation starters
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {(conversation.isGroup ? GROUP_STARTERS : DM_STARTERS).map((starter) => (
+                  <button
+                    key={starter.text}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!conversationId) return;
+                      sendMessage({
+                        conversationId: conversationId as any,
+                        content: starter.text,
+                        type: "text",
+                      }).catch(console.error);
+                    }}
+                    className="flex items-start gap-2.5 p-3 rounded-2xl text-left bg-accent/60 hover:bg-accent border border-border hover:border-primary/30 hover:shadow-md hover:shadow-primary/10 transition-all duration-200 group active:scale-95"
+                  >
+                    <span className="text-xl leading-none mt-0.5 group-hover:scale-125 transition-transform duration-200">
+                      {starter.emoji}
+                    </span>
+                    <span className="text-[12px] font-semibold text-foreground leading-snug">
+                      {starter.text}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <p className="text-[10px] text-muted-foreground/50 mt-3 font-semibold">
+                Tap any suggestion to send it instantly
               </p>
             </div>
           </div>
@@ -418,8 +478,8 @@ export default function ChatWindow() {
                       {/* Bubble */}
                       <div
                         className={`px-4 py-3 rounded-2xl transition-all duration-200 ${isMe
-                            ? "bubble-out text-white rounded-tr-none"
-                            : "bg-card text-foreground rounded-tl-none border border-border shadow-sm hover:shadow-md"
+                          ? "bubble-out text-white rounded-tr-none"
+                          : "bg-card text-foreground rounded-tl-none border border-border shadow-sm hover:shadow-md"
                           } ${msg.isDeleted ? "opacity-50 grayscale" : ""}`}
                       >
                         <p className={`text-[14px] leading-relaxed ${msg.isDeleted ? "italic font-medium" : ""}`}>
@@ -457,8 +517,8 @@ export default function ChatWindow() {
                               key={r.emoji}
                               onClick={() => toggleReaction({ messageId: msg._id, emoji: r.emoji })}
                               className={`flex items-center gap-1.5 border rounded-full px-2.5 py-1 text-[12px] shadow-sm transition-all duration-200 hover:scale-110 active:scale-90 ${isMe
-                                  ? "bg-white/10 border-white/20 text-white"
-                                  : "bg-accent border-border text-foreground"
+                                ? "bg-white/10 border-white/20 text-white"
+                                : "bg-accent border-border text-foreground"
                                 }`}
                             >
                               {r.emoji} <span className="font-bold text-[10px]">{r.count}</span>
