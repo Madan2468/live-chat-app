@@ -10,12 +10,13 @@ import {
   Trash2,
   ChevronLeft,
   Loader2,
-  ArrowDownCircle,
+  ArrowDown,
   Hash,
   Info,
   MoreVertical,
   UserPlus,
   Trash,
+  Sparkles,
 } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
 import { useAutoScroll } from "@/hooks/useAutoScroll";
@@ -24,8 +25,11 @@ import EmojiPicker, { Theme } from "emoji-picker-react";
 import { useTheme } from "next-themes";
 import UserProfilePanel from "./UserProfilePanel";
 import AddGroupMemberModal from "./AddGroupMemberModal";
+import MessageDateDivider from "./MessageDateDivider";
+import { isSameDay } from "date-fns";
 
 const QUICK_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🔥"];
+const MAX_CHARS = 1000;
 
 export default function ChatWindow() {
   const { conversationId } = useParams();
@@ -33,7 +37,6 @@ export default function ChatWindow() {
   const { user: clerkUser } = useUser();
   const { theme } = useTheme();
 
-  // State
   const [message, setMessage] = useState("");
   const [showInputEmoji, setShowInputEmoji] = useState(false);
   const [hoveredMsgId, setHoveredMsgId] = useState<string | null>(null);
@@ -42,7 +45,6 @@ export default function ChatWindow() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [showAddMember, setShowAddMember] = useState(false);
 
-  // Profile panel state
   const [profileUser, setProfileUser] = useState<{
     name?: string; email?: string; image?: string; isOnline?: boolean;
   } | null>(null);
@@ -50,7 +52,6 @@ export default function ChatWindow() {
 
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdown on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
@@ -61,7 +62,6 @@ export default function ChatWindow() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  // Convex queries & mutations
   const conversation = useQuery(api.conversations.list)?.find(c => c._id === conversationId);
   const messages = useQuery(api.messages.list, { conversationId: conversationId as any });
   const sendMessage = useMutation(api.messages.send);
@@ -96,8 +96,10 @@ export default function ChatWindow() {
   };
 
   const handleTyping = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setMessage(e.target.value);
-    setTyping({ conversationId: conversationId as any, isTyping: e.target.value.length > 0 });
+    const val = e.target.value;
+    if (val.length > MAX_CHARS) return;
+    setMessage(val);
+    setTyping({ conversationId: conversationId as any, isTyping: val.length > 0 });
   };
 
   const openProfile = (user: { name?: string; email?: string; image?: string; isOnline?: boolean }) => {
@@ -113,15 +115,10 @@ export default function ChatWindow() {
 
   const handleDeleteChat = async () => {
     if (!confirm("Delete this entire conversation? This cannot be undone.")) return;
-
-    // Set loading state first
     setIsDeleting(true);
     setShowMenuDropdown(false);
-
     try {
-      // Wait for deletion to actually complete in the backend
       await deleteConversation({ conversationId: conversationId as any });
-      // Only navigate after successful deletion
       router.push("/");
     } catch (err: any) {
       console.error("Failed to delete conversation:", err?.message);
@@ -132,38 +129,39 @@ export default function ChatWindow() {
 
   if (isDeleting) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center bg-background">
+      <div className="flex-1 flex flex-col items-center justify-center bg-background gap-4">
         <div className="relative">
-          <Trash className="h-10 w-10 text-destructive opacity-60" />
-          <div className="absolute inset-0 blur-xl bg-destructive/10 animate-pulse" />
+          <div className="p-6 bg-destructive/10 rounded-full border-2 border-destructive/20">
+            <Trash className="h-10 w-10 text-destructive opacity-80" />
+          </div>
+          <div className="absolute inset-0 blur-2xl bg-destructive/15 animate-pulse -z-10" />
         </div>
-        <p className="mt-4 text-muted-foreground font-semibold animate-pulse">Deleting conversation...</p>
+        <p className="text-muted-foreground font-semibold animate-pulse">Deleting conversation…</p>
       </div>
     );
   }
 
   if (messages === undefined || conversation === undefined) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center bg-background">
+      <div className="flex-1 flex flex-col items-center justify-center bg-background gap-4">
         <div className="relative">
-          <Loader2 className="h-10 w-10 animate-spin text-primary" />
-          <div className="absolute inset-0 blur-lg bg-primary/20 animate-pulse" />
+          <div className="p-6 bg-primary/10 rounded-full border-2 border-primary/20">
+            <Loader2 className="h-10 w-10 animate-spin text-primary" />
+          </div>
+          <div className="absolute inset-0 blur-2xl bg-primary/15 animate-pulse -z-10" />
         </div>
-        <p className="mt-4 text-muted-foreground font-medium animate-pulse">Loading chat...</p>
+        <p className="text-muted-foreground font-medium animate-pulse">Loading chat…</p>
       </div>
     );
   }
 
+  const charsLeft = MAX_CHARS - message.length;
+  const charsWarning = charsLeft < 100;
+
   return (
     <div className="flex-1 flex flex-col h-full bg-background relative transition-colors duration-300">
-      {/* User Profile Slide Panel */}
-      <UserProfilePanel
-        user={profileUser}
-        isOpen={profileOpen}
-        onClose={() => setProfileOpen(false)}
-      />
+      <UserProfilePanel user={profileUser} isOpen={profileOpen} onClose={() => setProfileOpen(false)} />
 
-      {/* Add Group Member Modal */}
       {conversation.isGroup && (
         <AddGroupMemberModal
           conversationId={conversationId as string}
@@ -173,111 +171,112 @@ export default function ChatWindow() {
       )}
 
       {/* ─── Header ─── */}
-      <header className="h-20 px-6 flex items-center justify-between border-b border-border bg-card/50 backdrop-blur-xl z-20 sticky top-0 shadow-sm">
-        <div className="flex items-center gap-4">
-          <button onClick={() => router.push("/")} className="md:hidden p-2 -ml-2 hover:bg-accent rounded-xl transition-colors">
-            <ChevronLeft className="h-6 w-6" />
+      <header className="h-[68px] px-5 flex items-center justify-between border-b border-border bg-card/70 backdrop-blur-xl z-20 sticky top-0">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => router.push("/")}
+            className="md:hidden p-2 -ml-1 hover:bg-accent rounded-xl transition-colors"
+          >
+            <ChevronLeft className="h-5 w-5" />
           </button>
 
-          {/* Clickable avatar */}
+          {/* Avatar */}
           <button
-            className="relative group focus:outline-none"
+            className="relative focus:outline-none group"
             onClick={() => !conversation.isGroup && conversation.otherUser && openProfile(conversation.otherUser)}
             title={conversation.isGroup ? undefined : "View profile"}
           >
             {conversation.isGroup ? (
-              <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
-                <Hash className="h-6 w-6 text-white" />
+              <div className="h-11 w-11 rounded-2xl bg-gradient-to-br from-emerald-400 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                <Hash className="h-5 w-5 text-white" />
               </div>
             ) : (
               <div className="relative">
                 <img
                   src={conversation.otherUser?.image}
-                  className="h-12 w-12 rounded-2xl border-2 border-border shadow-md transition-all duration-300 group-hover:scale-105 group-hover:border-primary/60"
+                  className="h-11 w-11 rounded-2xl border-2 border-border shadow-md object-cover transition-all duration-300 group-hover:scale-105 group-hover:border-primary/60"
                 />
-                <div className="absolute inset-0 rounded-2xl ring-2 ring-primary/0 group-hover:ring-primary/30 transition-all duration-300" />
                 {conversation.otherUser?.isOnline && (
-                  <div className="absolute -bottom-1 -right-1 h-4 w-4 bg-green-500 border-2 border-white dark:border-slate-900 rounded-full shadow-lg" />
+                  <div className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 bg-green-500 border-2 border-card rounded-full animate-online-ring" />
                 )}
               </div>
             )}
           </button>
 
-          {/* Name & status — clickable for 1-on-1 */}
+          {/* Name & Status */}
           <button
             className="flex flex-col text-left focus:outline-none group"
             onClick={() => !conversation.isGroup && conversation.otherUser && openProfile(conversation.otherUser)}
           >
-            <h3 className="text-base font-bold text-foreground leading-tight tracking-tight group-hover:text-primary transition-colors duration-200">
+            <h3 className="text-[15px] font-extrabold text-foreground leading-tight tracking-tight group-hover:text-primary transition-colors duration-200">
               {conversation.isGroup ? conversation.name : conversation.otherUser?.name}
             </h3>
             {otherTypingUsers.length > 0 ? (
-              <p className="text-[11px] text-primary font-bold animate-pulse tracking-wide italic">
+              <p className="text-[11px] text-primary font-bold animate-pulse tracking-wide mt-0.5">
                 {otherTypingUsers.length === 1
-                  ? `${otherTypingUsers[0].name} is typing...`
-                  : "Multiple users are typing..."}
+                  ? `${otherTypingUsers[0].name} is typing…`
+                  : "Multiple people are typing…"}
               </p>
             ) : (
               <div className="flex items-center gap-1.5 mt-0.5">
-                <div className={`h-1.5 w-1.5 rounded-full ${conversation.isGroup ? "bg-emerald-500" : (conversation.otherUser?.isOnline ? "bg-green-500" : "bg-muted-foreground/40")}`} />
-                <p className="text-[11px] text-muted-foreground font-semibold uppercase tracking-widest">
+                <div
+                  className={`h-1.5 w-1.5 rounded-full ${conversation.isGroup
+                      ? "bg-emerald-500"
+                      : conversation.otherUser?.isOnline
+                        ? "bg-green-500"
+                        : "bg-muted-foreground/40"
+                    }`}
+                />
+                <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">
                   {conversation.isGroup
                     ? `${conversation.memberCount} members`
-                    : (conversation.otherUser?.isOnline ? "Active now" : "Offline")}
+                    : conversation.otherUser?.isOnline
+                      ? "Active now"
+                      : "Offline"}
                 </p>
               </div>
             )}
           </button>
         </div>
 
-        {/* Right side action buttons */}
+        {/* Actions */}
         <div className="flex items-center gap-1" ref={menuRef}>
           {!conversation.isGroup && (
             <button
               onClick={() => conversation.otherUser && openProfile(conversation.otherUser)}
-              className="p-2.5 hover:bg-accent rounded-xl text-muted-foreground transition-all duration-300 hover:text-primary"
+              className="p-2.5 hover:bg-accent rounded-xl text-muted-foreground transition-all duration-200 hover:text-primary"
               title="View profile"
             >
-              <Info className="h-6 w-6" />
+              <Info className="h-5 w-5" />
             </button>
           )}
 
-          {/* 3-dot menu */}
           <div className="relative">
             <button
               onClick={() => setShowMenuDropdown(v => !v)}
-              className="p-2.5 hover:bg-accent rounded-xl text-muted-foreground transition-all duration-300 hover:text-foreground"
-              title="Options"
+              className="p-2.5 hover:bg-accent rounded-xl text-muted-foreground transition-all duration-200 hover:text-foreground"
             >
-              <MoreVertical className="h-6 w-6" />
+              <MoreVertical className="h-5 w-5" />
             </button>
 
             {showMenuDropdown && (
-              <div className="absolute right-0 top-full mt-2 w-52 bg-card border border-border rounded-2xl shadow-2xl shadow-black/10 overflow-hidden z-30 animate-in fade-in slide-in-from-top-2 duration-200">
-                {/* Add Members — only for group chats */}
+              <div className="absolute right-0 top-full mt-2 w-52 bg-popover border border-border rounded-2xl shadow-2xl overflow-hidden z-30 animate-in fade-in slide-in-from-top-2 duration-200">
                 {conversation.isGroup && (
                   <button
                     onClick={() => { setShowAddMember(true); setShowMenuDropdown(false); }}
                     className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-accent transition-colors text-sm font-bold text-foreground"
                   >
-                    <UserPlus className="h-5 w-5 text-primary" />
+                    <UserPlus className="h-4 w-4 text-primary" />
                     Add Members
                   </button>
                 )}
-
-                {/* Divider if both options shown */}
                 {conversation.isGroup && <div className="h-px bg-border mx-4" />}
-
-                {/* Delete Chat */}
                 <button
                   onClick={handleDeleteChat}
                   disabled={isDeleting}
                   className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-destructive/10 transition-colors text-sm font-bold text-destructive disabled:opacity-50"
                 >
-                  {isDeleting
-                    ? <Loader2 className="h-5 w-5 animate-spin" />
-                    : <Trash className="h-5 w-5" />
-                  }
+                  {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash className="h-4 w-4" />}
                   Delete Chat
                 </button>
               </div>
@@ -289,195 +288,223 @@ export default function ChatWindow() {
       {/* ─── Messages ─── */}
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto p-6 space-y-4 scroll-smooth bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/5 via-transparent to-transparent custom-scrollbar"
+        className="flex-1 overflow-y-auto px-4 py-4 space-y-1 scroll-smooth custom-scrollbar bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/5 via-transparent to-transparent"
         onClick={() => { setShowMsgEmojiPickerFor(null); setHoveredMsgId(null); setShowMenuDropdown(false); }}
       >
         {messages.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center space-y-6 animate-in fade-in zoom-in duration-500">
             <div className="relative">
-              <div className="p-8 bg-primary/10 rounded-full border-2 border-primary/20">
-                <Send className="h-12 w-12 text-primary rotate-45" />
+              <div className="p-8 bg-gradient-to-br from-primary/10 to-violet-500/10 rounded-full border-2 border-primary/20 animate-float">
+                <Sparkles className="h-12 w-12 text-primary" />
               </div>
-              <div className="absolute inset-0 blur-2xl bg-primary/20 -z-10" />
+              <div className="absolute inset-0 blur-3xl bg-primary/15 -z-10 rounded-full" />
             </div>
-            <div className="max-w-[280px]">
-              <p className="text-xl font-bold text-foreground">Start chatting!</p>
-              <p className="text-sm text-muted-foreground mt-2">
-                Send a message to {conversation.isGroup ? "the group" : conversation.otherUser?.name}.
+            <div className="max-w-[260px]">
+              <p className="text-xl font-black text-foreground">Start the conversation!</p>
+              <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
+                Say hello to{" "}
+                <span className="font-bold text-primary">
+                  {conversation.isGroup ? conversation.name : conversation.otherUser?.name}
+                </span>
+                .
               </p>
             </div>
           </div>
         ) : (
-          messages.map((msg, i) => {
-            if (msg.type === "system") {
-              return (
-                <div key={msg._id} className="flex justify-center my-6">
-                  <div className="bg-primary/5 text-primary/80 px-5 py-2 rounded-full text-[13px] font-bold tracking-wide border border-primary/10 shadow-sm backdrop-blur-md">
-                    {msg.content}
+          (() => {
+            const elements: React.ReactNode[] = [];
+            messages.forEach((msg, i) => {
+              // Date divider
+              const prev = messages[i - 1];
+              const needsDivider =
+                i === 0 || !isSameDay(new Date(prev._creationTime), new Date(msg._creationTime));
+              if (needsDivider) {
+                elements.push(<MessageDateDivider key={`divider-${msg._id}`} timestamp={msg._creationTime} />);
+              }
+
+              if (msg.type === "system") {
+                elements.push(
+                  <div key={msg._id} className="flex justify-center my-4">
+                    <div className="bg-primary/5 text-primary/80 px-5 py-2 rounded-full text-[12px] font-bold tracking-wide border border-primary/10 shadow-sm backdrop-blur-md">
+                      {msg.content}
+                    </div>
+                  </div>
+                );
+                return;
+              }
+
+              const isMe = msg.sender?.clerkId === clerkUser?.id;
+              const showAvatar = !isMe && (i === 0 || messages[i - 1].senderId !== msg.senderId);
+              const isHovered = hoveredMsgId === msg._id;
+              const showMsgEmoji = showMsgEmojiPickerFor === msg._id;
+
+              elements.push(
+                <div
+                  key={msg._id}
+                  className={`flex gap-3 group relative ${isMe ? "flex-row-reverse" : ""} animate-message-pop`}
+                  onMouseEnter={() => setHoveredMsgId(msg._id)}
+                  onMouseLeave={() => { if (!showMsgEmoji) setHoveredMsgId(null); }}
+                >
+                  {/* Avatar column */}
+                  {!isMe && (
+                    <div className="w-9 shrink-0 mt-auto">
+                      {showAvatar && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); msg.sender && openProfile(msg.sender as any); }}
+                          className="focus:outline-none"
+                        >
+                          <img
+                            src={msg.sender?.image}
+                            className="h-9 w-9 rounded-xl shadow border border-border hover:scale-110 hover:border-primary/50 transition-all object-cover"
+                          />
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  <div className={`flex flex-col max-w-[75%] ${isMe ? "items-end" : "items-start"}`}>
+                    {!isMe && showAvatar && (
+                      <button
+                        className="text-[11px] font-bold text-muted-foreground mb-1 ml-1 hover:text-primary transition-colors"
+                        onClick={(e) => { e.stopPropagation(); msg.sender && openProfile(msg.sender as any); }}
+                      >
+                        {msg.sender?.name}
+                      </button>
+                    )}
+
+                    <div className={`relative flex flex-col ${isMe ? "items-end" : "items-start"}`}>
+                      {/* Quick-react hover bar */}
+                      {isHovered && !msg.isDeleted && (
+                        <div
+                          className={`absolute ${isMe ? "right-full mr-2" : "left-full ml-2"} top-1/2 -translate-y-1/2 z-30 flex items-center gap-1 bg-card border border-border rounded-2xl px-2 py-1.5 shadow-xl animate-in fade-in zoom-in-90 duration-150`}
+                          onClick={e => e.stopPropagation()}
+                        >
+                          {QUICK_EMOJIS.map(emoji => (
+                            <button
+                              key={emoji}
+                              onClick={() => handleQuickReact(msg._id, emoji)}
+                              className="text-base hover:scale-150 active:scale-90 transition-transform duration-150 leading-none p-0.5 rounded-md hover:bg-accent"
+                            >
+                              {emoji}
+                            </button>
+                          ))}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setShowMsgEmojiPickerFor(showMsgEmoji ? null : msg._id);
+                            }}
+                            className="p-1 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            <Smile className="h-4 w-4" />
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Full emoji picker */}
+                      {showMsgEmoji && (
+                        <div
+                          className={`absolute ${isMe ? "right-full mr-2" : "left-full ml-2"} bottom-0 z-50 shadow-2xl rounded-3xl overflow-hidden border border-border animate-in fade-in slide-in-from-bottom-3 duration-200`}
+                          onClick={e => e.stopPropagation()}
+                        >
+                          <EmojiPicker
+                            theme={theme === "dark" ? Theme.DARK : Theme.LIGHT}
+                            onEmojiClick={(e) => handleQuickReact(msg._id, e.emoji)}
+                            height={360}
+                            width={300}
+                          />
+                        </div>
+                      )}
+
+                      {/* Bubble */}
+                      <div
+                        className={`px-4 py-3 rounded-2xl transition-all duration-200 ${isMe
+                            ? "bubble-out text-white rounded-tr-none"
+                            : "bg-card text-foreground rounded-tl-none border border-border shadow-sm hover:shadow-md"
+                          } ${msg.isDeleted ? "opacity-50 grayscale" : ""}`}
+                      >
+                        <p className={`text-[14px] leading-relaxed ${msg.isDeleted ? "italic font-medium" : ""}`}>
+                          {msg.content}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Timestamp / delete */}
+                    <div className={`mt-1 flex items-center gap-2 text-[10px] font-bold tracking-widest uppercase opacity-0 group-hover:opacity-100 transition-all duration-300 ${isMe ? "text-primary/60 mr-1" : "text-muted-foreground/60 ml-1"}`}>
+                      {formatMessageTime(msg._creationTime)}
+                      {isMe && !msg.isDeleted && (
+                        <button
+                          onClick={() => deleteMessage({ messageId: msg._id })}
+                          className="hover:text-destructive flex items-center gap-1 transition-colors"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                          Delete
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Reactions */}
+                    {msg.reactions.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {msg.reactions
+                          .reduce((acc: any[], r) => {
+                            const ex = acc.find(x => x.emoji === r.emoji);
+                            if (ex) ex.count++;
+                            else acc.push({ emoji: r.emoji, count: 1 });
+                            return acc;
+                          }, [])
+                          .map(r => (
+                            <button
+                              key={r.emoji}
+                              onClick={() => toggleReaction({ messageId: msg._id, emoji: r.emoji })}
+                              className={`flex items-center gap-1.5 border rounded-full px-2.5 py-1 text-[12px] shadow-sm transition-all duration-200 hover:scale-110 active:scale-90 ${isMe
+                                  ? "bg-white/10 border-white/20 text-white"
+                                  : "bg-accent border-border text-foreground"
+                                }`}
+                            >
+                              {r.emoji} <span className="font-bold text-[10px]">{r.count}</span>
+                            </button>
+                          ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               );
-            }
-
-            const isMe = msg.sender?.clerkId === clerkUser?.id;
-            const showAvatar = !isMe && (i === 0 || messages[i - 1].senderId !== msg.senderId);
-            const isHovered = hoveredMsgId === msg._id;
-            const showMsgEmoji = showMsgEmojiPickerFor === msg._id;
-
-            return (
-              <div
-                key={msg._id}
-                className={`flex gap-4 group relative ${isMe ? "flex-row-reverse" : ""}`}
-                onMouseEnter={() => setHoveredMsgId(msg._id)}
-                onMouseLeave={() => { if (!showMsgEmoji) setHoveredMsgId(null); }}
-              >
-                {!isMe && (
-                  <div className="w-10 shrink-0">
-                    {showAvatar && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); msg.sender && openProfile(msg.sender as any); }}
-                        className="focus:outline-none"
-                      >
-                        <img
-                          src={msg.sender?.image}
-                          className="h-10 w-10 rounded-xl shadow-md border border-border hover:scale-110 hover:border-primary/50 transition-all cursor-pointer"
-                        />
-                      </button>
-                    )}
-                  </div>
-                )}
-
-                <div className={`flex flex-col max-w-[80%] ${isMe ? "items-end" : "items-start"}`}>
-                  {!isMe && showAvatar && (
-                    <button
-                      className="text-[11px] font-bold text-muted-foreground mb-1 ml-1 tracking-wide hover:text-primary transition-colors"
-                      onClick={(e) => { e.stopPropagation(); msg.sender && openProfile(msg.sender as any); }}
-                    >
-                      {msg.sender?.name}
-                    </button>
-                  )}
-
-                  <div className={`relative flex flex-col ${isMe ? "items-end" : "items-start"}`}>
-                    {/* Hover quick-react bar */}
-                    {isHovered && !msg.isDeleted && (
-                      <div
-                        className={`absolute ${isMe ? "right-full mr-2" : "left-full ml-2"} top-1/2 -translate-y-1/2 z-30 flex items-center gap-1 bg-card border border-border rounded-2xl px-2 py-1.5 shadow-xl shadow-black/10 animate-in fade-in zoom-in-90 duration-150`}
-                        onClick={e => e.stopPropagation()}
-                      >
-                        {QUICK_EMOJIS.map(emoji => (
-                          <button
-                            key={emoji}
-                            onClick={() => handleQuickReact(msg._id, emoji)}
-                            className="text-lg hover:scale-150 active:scale-90 transition-transform duration-150 leading-none p-[2px] rounded-md hover:bg-accent"
-                          >
-                            {emoji}
-                          </button>
-                        ))}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setShowMsgEmojiPickerFor(showMsgEmoji ? null : msg._id);
-                          }}
-                          className="p-1 rounded-lg hover:bg-accent text-muted-foreground hover:text-foreground transition-colors"
-                        >
-                          <Smile className="h-5 w-5" />
-                        </button>
-                      </div>
-                    )}
-
-                    {/* Full emoji picker for a message */}
-                    {showMsgEmoji && (
-                      <div
-                        className={`absolute ${isMe ? "right-full mr-2" : "left-full ml-2"} bottom-0 z-50 shadow-2xl rounded-3xl overflow-hidden border border-border animate-in fade-in slide-in-from-bottom-3 duration-200`}
-                        onClick={e => e.stopPropagation()}
-                      >
-                        <EmojiPicker
-                          theme={theme === "dark" ? Theme.DARK : Theme.LIGHT}
-                          onEmojiClick={(emojiData) => handleQuickReact(msg._id, emojiData.emoji)}
-                          height={380}
-                          width={320}
-                        />
-                      </div>
-                    )}
-
-                    <div className={`px-5 py-3 rounded-2xl shadow-sm transition-all duration-300 hover:shadow-md ${isMe
-                      ? "bg-gradient-to-br from-rose-500 to-orange-500 text-white rounded-tr-none shadow-orange-500/20 shadow-lg"
-                      : "bg-card text-foreground rounded-tl-none border border-border"
-                      } ${msg.isDeleted ? "opacity-50 grayscale" : ""}`}>
-                      <p className={`text-[15px] leading-relaxed ${msg.isDeleted ? "italic font-medium" : ""}`}>
-                        {msg.content}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Timestamp + Delete */}
-                  <div className={`mt-1.5 flex items-center gap-3 text-[10px] font-bold tracking-widest uppercase opacity-0 group-hover:opacity-100 transition-all duration-300 ${isMe ? "text-primary/70 mr-1" : "text-muted-foreground/70 ml-1"}`}>
-                    {formatMessageTime(msg._creationTime)}
-                    {isMe && !msg.isDeleted && (
-                      <button
-                        onClick={() => deleteMessage({ messageId: msg._id })}
-                        className="hover:text-destructive flex items-center gap-1 transition-colors"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                        DELETE
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Reactions */}
-                  {msg.reactions.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 mt-2">
-                      {msg.reactions.reduce((acc: any[], r) => {
-                        const existing = acc.find(x => x.emoji === r.emoji);
-                        if (existing) existing.count++;
-                        else acc.push({ emoji: r.emoji, count: 1 });
-                        return acc;
-                      }, []).map(r => (
-                        <button
-                          key={r.emoji}
-                          onClick={() => toggleReaction({ messageId: msg._id, emoji: r.emoji })}
-                          className={`flex items-center gap-1.5 border rounded-full px-2.5 py-1 text-[13px] shadow-sm transition-all duration-300 hover:scale-110 active:scale-90 ${isMe ? "bg-primary/10 border-primary/20 text-primary" : "bg-accent border-border text-foreground"}`}
-                        >
-                          {r.emoji} <span className="font-bold text-[11px]">{r.count}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })
+            });
+            return elements;
+          })()
         )}
       </div>
 
+      {/* Scroll to bottom button */}
       {showNewMessageButton && (
         <button
           onClick={scrollToBottom}
-          className="absolute bottom-32 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground p-3 rounded-2xl shadow-2xl hover:scale-110 active:scale-95 transition-all z-30 flex items-center gap-2 px-6 py-3 font-black text-xs tracking-widest ring-4 ring-primary/20 animate-bounce"
+          className="absolute bottom-28 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground pl-4 pr-5 py-2.5 rounded-full shadow-2xl shadow-primary/30 hover:bg-primary/90 hover:scale-105 active:scale-95 transition-all z-30 flex items-center gap-2 text-xs font-black tracking-wider ring-4 ring-primary/20 animate-bounce"
         >
-          <ArrowDownCircle className="h-5 w-5" />
-          GO TO BOTTOM
+          <ArrowDown className="h-4 w-4" />
+          New messages
         </button>
       )}
 
       {/* ─── Input Area ─── */}
-      <div className="p-6 bg-card/80 backdrop-blur-xl border-t border-border mt-auto">
-        <form onSubmit={handleSend} className="flex items-center gap-3 max-w-5xl mx-auto">
-          <div className="relative">
+      <div className="p-4 bg-card/90 backdrop-blur-xl border-t border-border">
+        <form onSubmit={handleSend} className="flex items-center gap-2 max-w-5xl mx-auto">
+          {/* Emoji trigger */}
+          <div className="relative shrink-0">
             <button
               type="button"
-              className="p-3.5 hover:bg-accent rounded-2xl text-muted-foreground transition-all duration-300 hover:text-primary hover:rotate-12"
+              className="p-3 hover:bg-accent rounded-2xl text-muted-foreground transition-all duration-200 hover:text-primary hover:rotate-12"
               onClick={() => setShowInputEmoji(!showInputEmoji)}
             >
-              <Smile className="h-7 w-7" />
+              <Smile className="h-6 w-6" />
             </button>
             {showInputEmoji && (
-              <div className="absolute bottom-full left-0 mb-6 z-50 animate-in slide-in-from-bottom-5 fade-in duration-300">
+              <div className="absolute bottom-full left-0 mb-4 z-50 animate-in slide-in-from-bottom-4 fade-in duration-200">
                 <div className="shadow-2xl rounded-3xl overflow-hidden border border-border">
                   <EmojiPicker
                     theme={theme === "dark" ? Theme.DARK : Theme.LIGHT}
-                    onEmojiClick={(emojiData) => {
-                      setMessage(prev => prev + emojiData.emoji);
+                    onEmojiClick={(e) => {
+                      setMessage(prev => prev + e.emoji);
                       setShowInputEmoji(false);
                     }}
                   />
@@ -486,22 +513,29 @@ export default function ChatWindow() {
             )}
           </div>
 
+          {/* Input + char counter */}
           <div className="flex-1 relative">
             <input
               type="text"
-              placeholder="Type something..."
-              className="w-full bg-accent border-2 border-transparent rounded-2xl px-6 py-4 text-[15px] font-medium leading-tight transition-all outline-none focus:border-primary/30 focus:bg-background ring-primary/10 focus:ring-4 placeholder:text-muted-foreground/50"
+              placeholder="Type a message…"
+              className="w-full bg-accent/60 border-2 border-transparent rounded-2xl px-5 py-3.5 text-[14px] font-medium transition-all outline-none focus:border-primary/30 focus:bg-background focus:ring-4 focus:ring-primary/10 placeholder:text-muted-foreground/40"
               value={message}
               onChange={handleTyping}
             />
+            {message.length > 0 && (
+              <span className={`absolute right-4 top-1/2 -translate-y-1/2 text-[11px] font-bold transition-colors ${charsWarning ? "text-orange-400" : "text-muted-foreground/40"}`}>
+                {charsLeft}
+              </span>
+            )}
           </div>
 
+          {/* Send button */}
           <button
             type="submit"
             disabled={!message.trim()}
-            className="p-4 bg-primary text-primary-foreground rounded-2xl hover:bg-primary/90 disabled:opacity-50 disabled:grayscale transition-all shadow-xl shadow-primary/20 active:scale-95 group"
+            className="p-3.5 bg-gradient-to-br from-violet-600 to-rose-500 text-white rounded-2xl disabled:opacity-40 disabled:grayscale transition-all shadow-lg shadow-violet-500/25 active:scale-95 hover:shadow-violet-500/40 hover:scale-105 group"
           >
-            <Send className="h-6 w-6 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
+            <Send className="h-5 w-5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
           </button>
         </form>
       </div>

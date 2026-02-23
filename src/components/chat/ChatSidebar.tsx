@@ -2,31 +2,48 @@
 
 import { UserButton } from "@clerk/nextjs";
 import { useState } from "react";
-import { Plus } from "lucide-react";
+import { Plus, Zap } from "lucide-react";
 import UserSearch from "./UserSearch";
 import ConversationList from "./ConversationList";
 import CreateGroupModal from "./CreateGroupModal";
 import ThemeToggle from "./ThemeToggle";
+import { useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 
 export default function ChatSidebar() {
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
+  const allUsers = useQuery(api.users.getUsers);
+  const onlineCount = allUsers?.filter((u) => u.isOnline).length ?? 0;
 
   return (
     <aside className="w-full flex flex-col h-full bg-card border-r border-border shadow-sm transition-colors duration-300">
-      <div className="p-4 flex items-center justify-between border-b border-border bg-card/50 backdrop-blur-md sticky top-0 z-10">
-        <div className="flex items-center gap-2">
-          <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-            <span className="text-white font-bold text-lg">C</span>
+      {/* Header */}
+      <div className="p-4 flex items-center justify-between border-b border-border sticky top-0 z-10 bg-card/80 backdrop-blur-xl">
+        <div className="flex items-center gap-2.5">
+          {/* Animated Logo Icon */}
+          <div className="relative h-10 w-10 rounded-xl bg-gradient-to-br from-violet-500 via-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/30 overflow-hidden group">
+            <div className="absolute inset-0 animate-shimmer opacity-60" />
+            <Zap className="h-5 w-5 text-white drop-shadow-md relative z-10" />
           </div>
-          <h1 className="text-xl font-bold tracking-tight text-foreground hidden sm:block">
-            ChatApp
-          </h1>
+          <div className="hidden sm:flex flex-col">
+            <h1 className="text-lg font-black tracking-tight gradient-text leading-none">
+              ChatApp
+            </h1>
+            {/* Online count badge */}
+            <div className="flex items-center gap-1 mt-0.5">
+              <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                {onlineCount} online
+              </span>
+            </div>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
+
+        <div className="flex items-center gap-1.5">
           <ThemeToggle />
           <button
             onClick={() => setIsGroupModalOpen(true)}
-            className="p-2.5 bg-primary/10 hover:bg-primary/20 text-primary rounded-xl transition-all duration-300 group"
+            className="p-2.5 bg-primary/10 hover:bg-primary/20 text-primary rounded-xl transition-all duration-300 group border border-primary/20 hover:border-primary/40"
             title="Create Group"
           >
             <Plus className="h-5 w-5 group-hover:rotate-90 transition-transform duration-300" />
@@ -37,11 +54,13 @@ export default function ChatSidebar() {
         </div>
       </div>
 
-      <div className="p-4 border-b border-border bg-background/30">
+      {/* Search */}
+      <div className="p-4 border-b border-border bg-background/20">
         <UserSearch />
       </div>
 
-      <div className="flex-1 overflow-y-auto custom-scrollbar bg-background/50">
+      {/* Conversation list */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar">
         <ConversationList />
       </div>
 
