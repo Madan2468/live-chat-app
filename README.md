@@ -11,17 +11,22 @@ A modern, full-stack real-time chat application built with **Next.js**, **Convex
 | 1 | 🔐 **Authentication** | Clerk-powered sign-up/login (email + social). Avatar & name displayed. User profiles stored in Convex for discovery. |
 | 2 | 🔍 **User Search** | Shows all users (excluding yourself). Search bar filters by name as you type. Click to open or create a DM. |
 | 3 | 💬 **Direct Messages** | Private 1-on-1 conversations. Real-time via Convex subscriptions. Sidebar previews the latest message. |
-| 4 | 🕐 **Smart Timestamps** | Today → `2:34 PM` · Same year → `Feb 15, 2:34 PM` · Older → `Feb 15, 2024, 2:34 PM` |
-| 5 | 🫙 **Empty States** | Helpful messages for: no conversations, no messages (with conversation starter chips), no search results. |
-| 6 | 📱 **Responsive Layout** | Desktop: sidebar + chat side-by-side. Mobile: list view by default → full-screen chat with back button. |
-| 7 | 🟢 **Online / Offline Status** | Green indicator next to online users. Updates in real-time as users open or close the app. |
-| 8 | ⌨️ **Typing Indicator** | Shows "Alex is typing…". Disappears after **2 seconds** of inactivity or when message is sent. |
-| 9 | 🔔 **Unread Count** | Animated badge per conversation. Cleared automatically when the conversation is opened. |
-| 10 | ⬇️ **Smart Auto-Scroll** | Auto-scrolls to new messages. If scrolled up, shows "↓ New messages" button instead. |
-| 11 | 🗑️ **Delete Messages** | Delete your own messages. Shows *"This message was deleted"* for all users (soft delete). |
-| 12 | 😄 **Reactions** | React with 👍 ❤️ 😂 😮 😢 🔥 or full emoji picker. Click again to remove. Shows counts. |
-| 13 | ⚠️ **Error Handling** | Skeleton loaders & spinners while loading. Failed sends show an error banner with **Retry** + **Dismiss**. |
-| 14 | 👥 **Group Chat** | Create groups with a name and multiple members. All members see messages in real-time. Member count in sidebar. |
+| 4 | 👥 **Group Chat** | Create groups with a name and multiple members. All members see messages in real-time. Member count in sidebar. |
+| 5 | 🗂️ **Sidebar Filters** | Filter tab bar to easily switch between viewing **All**, **DMs**, and **Groups**, keeping your chat list organized. |
+| 6 | ✏️ **Message Editing** | Inline edit your own messages after sending. Edited messages display an *"(edited)"* badge. |
+| 7 | ↩️ **Reply Threading** | Quote previous messages in your reply. Displays an elegant quoted bubble above the replying message. |
+| 8 | 📌 **Message Pinning** | Pin important messages. The latest pinned message displays in an elegant sliding banner at the top of the chat. |
+| 9 | 🖼️ **Media Uploads** | Attach and send images natively within the chat flow using a built-in file picker. |
+| 10 | 🕐 **Smart Timestamps** | Today → `2:34 PM` · Same year → `Feb 15, 2:34 PM` · Older → `Feb 15, 2024, 2:34 PM` |
+| 11 | 🫙 **Empty States** | Immersive modern empty states with animated gradient backgrounds and helpful conversation starter chips. |
+| 12 | 📱 **Responsive Layout** | Desktop: sidebar + chat side-by-side. Mobile: list view by default → full-screen chat with back button. |
+| 13 | 🟢 **Online / Offline Status** | Green indicator next to online users. Updates in real-time as users open or close the app. |
+| 14 | ⌨️ **Typing Indicator** | Modern animated bouncing three-dots indicator in the header when someone is typing. |
+| 15 | 🔔 **Unread Count** | Animated badge per conversation. Cleared automatically when the conversation is opened. |
+| 16 | ⬇️ **Smart Auto-Scroll** | Auto-scrolls to new messages. If scrolled up, shows an animated "↓ New messages" bouncy button instead. |
+| 17 | 🗑️ **Delete Messages** | Delete your own messages. Shows *"This message was deleted"* for all users (soft delete). |
+| 18 | 😄 **Reactions** | Floating reaction bubble grouping across messages. React with quick emojis or full picker. |
+| 19 | ⚠️ **Error Handling** | Skeleton loaders & spinners while loading. Failed sends show an error banner with **Retry** + **Dismiss**. |
 
 ---
 
