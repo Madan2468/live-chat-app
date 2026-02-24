@@ -3,7 +3,7 @@
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { useParams, useRouter } from "next/navigation";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
   Send,
   Smile,
@@ -18,6 +18,16 @@ import {
   Trash,
   Sparkles,
   Lightbulb,
+  Pencil,
+  CornerUpLeft,
+  Pin,
+  PinOff,
+  X,
+  Check,
+  Paperclip,
+  Video,
+  Phone,
+  Image as ImageIcon,
 } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
 import { useAutoScroll } from "@/hooks/useAutoScroll";
@@ -51,6 +61,12 @@ const GROUP_STARTERS = [
   { emoji: "📣", text: "Quick check-in — how is everyone?" },
 ];
 
+type ReplyTarget = {
+  _id: string;
+  content: string;
+  senderName: string;
+};
+
 export default function ChatWindow() {
   const { conversationId } = useParams();
   const router = useRouter();
@@ -72,8 +88,20 @@ export default function ChatWindow() {
   const [sendError, setSendError] = useState<string | null>(null);
   const [failedMessage, setFailedMessage] = useState<string | null>(null);
 
+  // Edit state
+  const [editingMsgId, setEditingMsgId] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState("");
+  const editInputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Reply state
+  const [replyTarget, setReplyTarget] = useState<ReplyTarget | null>(null);
+
+  // File upload ref
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const menuRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -85,10 +113,29 @@ export default function ChatWindow() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  // Focus edit input when editing starts
+  useEffect(() => {
+    if (editingMsgId && editInputRef.current) {
+      editInputRef.current.focus();
+      editInputRef.current.setSelectionRange(editContent.length, editContent.length);
+    }
+  }, [editingMsgId]);
+
+  // Focus main input when reply target is set
+  useEffect(() => {
+    if (replyTarget && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [replyTarget]);
+
   const conversation = useQuery(api.conversations.list)?.find(c => c._id === conversationId);
   const messages = useQuery(api.messages.list, { conversationId: conversationId as any });
+  const pinnedMessages = useQuery(api.messages.listPinned, { conversationId: conversationId as any });
+
   const sendMessage = useMutation(api.messages.send);
   const deleteMessage = useMutation(api.messages.remove);
+  const editMessage = useMutation(api.messages.edit);
+  const pinMessage = useMutation(api.messages.pin);
   const toggleReaction = useMutation(api.reactions.toggle);
   const setTyping = useMutation(api.typing.update);
   const markAsRead = useMutation(api.conversations.markAsRead);
@@ -114,8 +161,15 @@ export default function ChatWindow() {
     setFailedMessage(null);
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     setTyping({ conversationId: conversationId as any, isTyping: false });
+    const replyToId = replyTarget?._id as any ?? undefined;
+    setReplyTarget(null);
     try {
-      await sendMessage({ conversationId: conversationId as any, content, type: "text" });
+      await sendMessage({
+        conversationId: conversationId as any,
+        content,
+        type: "text",
+        replyToId,
+      });
     } catch (err: any) {
       console.error("Failed to send message", err);
       setFailedMessage(content);
@@ -127,9 +181,7 @@ export default function ChatWindow() {
     const val = e.target.value;
     if (val.length > MAX_CHARS) return;
     setMessage(val);
-    // Set typing true immediately
     setTyping({ conversationId: conversationId as any, isTyping: val.length > 0 });
-    // Clear typing after 2s of inactivity
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     if (val.length > 0) {
       typingTimeoutRef.current = setTimeout(() => {
@@ -162,6 +214,60 @@ export default function ChatWindow() {
       alert(err?.message ?? "Failed to delete conversation. Please try again.");
     }
   };
+
+  // --- Edit helpers ---
+  const startEdit = (msgId: string, currentContent: string) => {
+    setEditingMsgId(msgId);
+    setEditContent(currentContent);
+    setHoveredMsgId(null);
+  };
+
+  const cancelEdit = () => {
+    setEditingMsgId(null);
+    setEditContent("");
+  };
+
+  const submitEdit = async (msgId: string) => {
+    if (!editContent.trim()) return;
+    try {
+      await editMessage({ messageId: msgId as any, content: editContent });
+    } catch (err: any) {
+      console.error("Edit failed", err);
+    }
+    cancelEdit();
+  };
+
+  // --- Pin helpers ---
+  const handlePin = async (msgId: string, currentlyPinned: boolean) => {
+    await pinMessage({ messageId: msgId as any, isPinned: !currentlyPinned });
+    setHoveredMsgId(null);
+  };
+
+  // --- Image upload ---
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !conversationId) return;
+    // For now, convert to base64 data URL and send as content
+    // In a real app you'd upload to Convex file storage
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const dataUrl = ev.target?.result as string;
+      try {
+        await sendMessage({
+          conversationId: conversationId as any,
+          content: dataUrl,
+          type: "image",
+        });
+      } catch (err) {
+        console.error("Image send failed", err);
+      }
+    };
+    reader.readAsDataURL(file);
+    // reset input
+    e.target.value = "";
+  };
+
+  const latestPinned = pinnedMessages?.[pinnedMessages.length - 1];
 
   if (isDeleting) {
     return (
@@ -206,9 +312,23 @@ export default function ChatWindow() {
         />
       )}
 
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleFileChange}
+      />
+
       {/* ─── Header ─── */}
       <header className="h-[68px] px-5 flex items-center justify-between border-b border-border bg-card/70 backdrop-blur-xl z-20 sticky top-0">
-        <div className="flex items-center gap-3">
+        {/* Subtle gradient shimmer overlay */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          <div className="absolute inset-0 animate-shimmer opacity-20 bg-gradient-to-r from-transparent via-primary/10 to-transparent" />
+        </div>
+
+        <div className="flex items-center gap-3 relative z-10">
           <button
             onClick={() => router.push("/")}
             className="md:hidden p-2 -ml-1 hover:bg-accent rounded-xl transition-colors"
@@ -248,11 +368,18 @@ export default function ChatWindow() {
               {conversation.isGroup ? conversation.name : conversation.otherUser?.name}
             </h3>
             {otherTypingUsers.length > 0 ? (
-              <p className="text-[11px] text-primary font-bold animate-pulse tracking-wide mt-0.5">
-                {otherTypingUsers.length === 1
-                  ? `${otherTypingUsers[0].name} is typing…`
-                  : "Multiple people are typing…"}
-              </p>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <div className="flex items-center gap-0.5 px-2 py-0.5 bg-primary/10 rounded-full">
+                  <span className="typing-dot text-primary" />
+                  <span className="typing-dot text-primary" />
+                  <span className="typing-dot text-primary" />
+                </div>
+                <p className="text-[11px] text-primary font-bold tracking-wide">
+                  {otherTypingUsers.length === 1
+                    ? `${otherTypingUsers[0].name} is typing`
+                    : "Multiple people are typing"}
+                </p>
+              </div>
             ) : (
               <div className="flex items-center gap-1.5 mt-0.5">
                 <div
@@ -275,8 +402,24 @@ export default function ChatWindow() {
           </button>
         </div>
 
-        {/* Actions */}
-        <div className="flex items-center gap-1" ref={menuRef}>
+        {/* Right actions */}
+        <div className="flex items-center gap-1 relative z-10" ref={menuRef}>
+          {/* Decorative call/video icons */}
+          <button
+            className="p-2.5 hover:bg-accent rounded-xl text-muted-foreground transition-all duration-200 hover:text-primary"
+            title="Voice call (coming soon)"
+            onClick={() => { }}
+          >
+            <Phone className="h-4.5 w-4.5" />
+          </button>
+          <button
+            className="p-2.5 hover:bg-accent rounded-xl text-muted-foreground transition-all duration-200 hover:text-primary"
+            title="Video call (coming soon)"
+            onClick={() => { }}
+          >
+            <Video className="h-4.5 w-4.5" />
+          </button>
+
           {!conversation.isGroup && (
             <button
               onClick={() => conversation.otherUser && openProfile(conversation.otherUser)}
@@ -320,6 +463,24 @@ export default function ChatWindow() {
           </div>
         </div>
       </header>
+
+      {/* ─── Pinned Message Banner ─── */}
+      {latestPinned && !latestPinned.isDeleted && (
+        <div className="animate-pin-slide mx-0 px-5 py-2.5 flex items-center gap-3 bg-primary/5 border-b border-primary/15 text-sm">
+          <Pin className="h-3.5 w-3.5 text-primary shrink-0" />
+          <div className="flex-1 min-w-0">
+            <span className="text-[10px] font-black text-primary uppercase tracking-widest mr-2">Pinned</span>
+            <span className="text-foreground/80 font-medium truncate text-xs">{latestPinned.content}</span>
+          </div>
+          <button
+            onClick={() => handlePin(latestPinned._id, true)}
+            className="p-1 rounded-lg hover:bg-primary/10 text-muted-foreground transition-colors"
+            title="Unpin"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* ─── Messages ─── */}
       <div
@@ -413,6 +574,8 @@ export default function ChatWindow() {
               const showAvatar = !isMe && (i === 0 || messages[i - 1].senderId !== msg.senderId);
               const isHovered = hoveredMsgId === msg._id;
               const showMsgEmoji = showMsgEmojiPickerFor === msg._id;
+              const isEditing = editingMsgId === msg._id;
+              const isPinned = msg.isPinned === true;
 
               elements.push(
                 <div
@@ -449,12 +612,13 @@ export default function ChatWindow() {
                     )}
 
                     <div className={`relative flex flex-col ${isMe ? "items-end" : "items-start"}`}>
-                      {/* Quick-react hover bar */}
-                      {isHovered && !msg.isDeleted && (
+                      {/* Action toolbar on hover */}
+                      {isHovered && !msg.isDeleted && !isEditing && (
                         <div
-                          className={`absolute ${isMe ? "right-full mr-2" : "left-full ml-2"} top-1/2 -translate-y-1/2 z-30 flex items-center gap-1 bg-card border border-border rounded-2xl px-2 py-1.5 shadow-xl animate-in fade-in zoom-in-90 duration-150`}
+                          className={`absolute ${isMe ? "right-full mr-2" : "left-full ml-2"} top-1/2 -translate-y-1/2 z-30 flex items-center gap-0.5 bg-card border border-border rounded-2xl px-1.5 py-1.5 shadow-xl animate-in fade-in zoom-in-90 duration-150`}
                           onClick={e => e.stopPropagation()}
                         >
+                          {/* Quick reacts */}
                           {QUICK_EMOJIS.map(emoji => (
                             <button
                               key={emoji}
@@ -464,6 +628,7 @@ export default function ChatWindow() {
                               {emoji}
                             </button>
                           ))}
+                          {/* Full emoji picker */}
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -473,6 +638,56 @@ export default function ChatWindow() {
                           >
                             <Smile className="h-4 w-4" />
                           </button>
+
+                          {/* Divider */}
+                          <div className="w-px h-5 bg-border mx-0.5" />
+
+                          {/* Reply */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setReplyTarget({
+                                _id: msg._id,
+                                content: msg.content,
+                                senderName: msg.sender?.name ?? "Unknown",
+                              });
+                            }}
+                            className="p-1 rounded-lg hover:bg-accent text-muted-foreground hover:text-primary transition-colors"
+                            title="Reply"
+                          >
+                            <CornerUpLeft className="h-4 w-4" />
+                          </button>
+
+                          {/* Pin */}
+                          <button
+                            onClick={() => handlePin(msg._id, isPinned)}
+                            className="p-1 rounded-lg hover:bg-accent text-muted-foreground hover:text-amber-500 transition-colors"
+                            title={isPinned ? "Unpin" : "Pin"}
+                          >
+                            {isPinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
+                          </button>
+
+                          {/* Edit (own messages only) */}
+                          {isMe && (
+                            <button
+                              onClick={() => startEdit(msg._id, msg.content)}
+                              className="p-1 rounded-lg hover:bg-accent text-muted-foreground hover:text-primary transition-colors"
+                              title="Edit"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                          )}
+
+                          {/* Delete */}
+                          {isMe && (
+                            <button
+                              onClick={() => deleteMessage({ messageId: msg._id as any })}
+                              className="p-1 rounded-lg hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                              title="Delete"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          )}
                         </div>
                       )}
 
@@ -493,55 +708,96 @@ export default function ChatWindow() {
 
                       {/* Bubble */}
                       <div
-                        className={`px-4 py-3 rounded-2xl transition-all duration-200 ${isMe
+                        className={`px-4 py-2.5 rounded-2xl transition-all duration-200 ${isMe
                           ? "bubble-out text-white rounded-tr-none"
                           : "bg-card text-foreground rounded-tl-none border border-border shadow-sm hover:shadow-md"
-                          } ${msg.isDeleted ? "opacity-50 grayscale" : ""}`}
+                          } ${msg.isDeleted ? "opacity-50 grayscale" : ""} ${isPinned ? "ring-2 ring-amber-400/30" : ""}`}
                       >
-                        <p className={`text-[14px] leading-relaxed ${msg.isDeleted ? "italic font-medium" : ""}`}>
-                          {msg.content}
-                        </p>
-                      </div>
-                    </div>
+                        {/* Reply quote */}
+                        {msg.replyTo && (
+                          <div className={`reply-quote mb-2 px-2.5 py-1.5 rounded text-[12px] ${isMe ? "opacity-80" : ""}`}>
+                            <p className="font-black text-[10px] mb-0.5 opacity-70 uppercase tracking-wider">
+                              {msg.replyTo.senderName}
+                            </p>
+                            <p className="truncate opacity-80">
+                              {msg.replyTo.isDeleted ? "Message deleted" : msg.replyTo.content}
+                            </p>
+                          </div>
+                        )}
 
-                    {/* Timestamp / delete */}
-                    <div className={`mt-1 flex items-center gap-2 text-[10px] font-bold tracking-widest uppercase opacity-0 group-hover:opacity-100 transition-all duration-300 ${isMe ? "text-primary/60 mr-1" : "text-muted-foreground/60 ml-1"}`}>
-                      {formatMessageTime(msg._creationTime)}
-                      {isMe && !msg.isDeleted && (
-                        <button
-                          onClick={() => deleteMessage({ messageId: msg._id })}
-                          className="hover:text-destructive flex items-center gap-1 transition-colors"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                          Delete
-                        </button>
+                        {/* Image or text */}
+                        {msg.type === "image" && !msg.isDeleted ? (
+                          <img
+                            src={msg.content}
+                            alt="Sent image"
+                            className="max-w-[220px] max-h-[280px] rounded-xl object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                            onClick={e => e.stopPropagation()}
+                          />
+                        ) : isEditing ? (
+                          <div className="flex flex-col gap-2 min-w-[180px]" onClick={e => e.stopPropagation()}>
+                            <textarea
+                              ref={editInputRef}
+                              value={editContent}
+                              onChange={e => setEditContent(e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submitEdit(msg._id); }
+                                if (e.key === "Escape") cancelEdit();
+                              }}
+                              className="bg-transparent outline-none resize-none text-[14px] leading-relaxed w-full"
+                              rows={2}
+                            />
+                            <div className="flex items-center gap-1.5 justify-end">
+                              <button onClick={cancelEdit} className="p-1 rounded-lg hover:bg-white/10 text-current opacity-60 hover:opacity-100 transition-opacity">
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                              <button onClick={() => submitEdit(msg._id)} className="p-1 rounded-lg hover:bg-white/10 text-current opacity-60 hover:opacity-100 transition-opacity">
+                                <Check className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className={`text-[14px] leading-relaxed ${msg.isDeleted ? "italic font-medium" : ""}`}>
+                            {msg.content}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Timestamp + edited label */}
+                      <div className={`mt-1 flex items-center gap-2 text-[10px] font-bold tracking-widest uppercase opacity-0 group-hover:opacity-100 transition-all duration-300 ${isMe ? "text-primary/60 mr-1" : "text-muted-foreground/60 ml-1"}`}>
+                        {formatMessageTime(msg._creationTime)}
+                        {msg.editedAt && !msg.isDeleted && (
+                          <span className="text-[9px] opacity-60 normal-case tracking-normal font-semibold">(edited)</span>
+                        )}
+                        {isPinned && (
+                          <Pin className="h-2.5 w-2.5 text-amber-500" />
+                        )}
+                      </div>
+
+                      {/* Reactions */}
+                      {msg.reactions.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          {msg.reactions
+                            .reduce((acc: any[], r) => {
+                              const ex = acc.find(x => x.emoji === r.emoji);
+                              if (ex) ex.count++;
+                              else acc.push({ emoji: r.emoji, count: 1 });
+                              return acc;
+                            }, [])
+                            .map(r => (
+                              <button
+                                key={r.emoji}
+                                onClick={() => toggleReaction({ messageId: msg._id as any, emoji: r.emoji })}
+                                className={`flex items-center gap-1.5 border rounded-full px-2.5 py-1 text-[12px] shadow-sm transition-all duration-200 hover:scale-110 active:scale-90 ${isMe
+                                  ? "bg-white/10 border-white/20 text-white"
+                                  : "bg-accent border-border text-foreground"
+                                  }`}
+                              >
+                                {r.emoji} <span className="font-bold text-[10px]">{r.count}</span>
+                              </button>
+                            ))}
+                        </div>
                       )}
                     </div>
-
-                    {/* Reactions */}
-                    {msg.reactions.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 mt-2">
-                        {msg.reactions
-                          .reduce((acc: any[], r) => {
-                            const ex = acc.find(x => x.emoji === r.emoji);
-                            if (ex) ex.count++;
-                            else acc.push({ emoji: r.emoji, count: 1 });
-                            return acc;
-                          }, [])
-                          .map(r => (
-                            <button
-                              key={r.emoji}
-                              onClick={() => toggleReaction({ messageId: msg._id, emoji: r.emoji })}
-                              className={`flex items-center gap-1.5 border rounded-full px-2.5 py-1 text-[12px] shadow-sm transition-all duration-200 hover:scale-110 active:scale-90 ${isMe
-                                ? "bg-white/10 border-white/20 text-white"
-                                : "bg-accent border-border text-foreground"
-                                }`}
-                            >
-                              {r.emoji} <span className="font-bold text-[10px]">{r.count}</span>
-                            </button>
-                          ))}
-                      </div>
-                    )}
                   </div>
                 </div>
               );
@@ -581,9 +837,36 @@ export default function ChatWindow() {
         </div>
       )}
 
+      {/* ─── Reply Preview Bar ─── */}
+      {replyTarget && (
+        <div className="mx-4 mb-1 animate-reply-slide flex items-center gap-3 px-4 py-2 bg-primary/5 border border-primary/20 rounded-2xl">
+          <CornerUpLeft className="h-3.5 w-3.5 text-primary shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] font-black text-primary uppercase tracking-wider">{replyTarget.senderName}</p>
+            <p className="text-xs text-muted-foreground truncate">{replyTarget.content}</p>
+          </div>
+          <button
+            onClick={() => setReplyTarget(null)}
+            className="p-1 rounded-lg hover:bg-primary/10 text-muted-foreground transition-colors"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* ─── Input Area ─── */}
       <div className="p-4 bg-card/90 backdrop-blur-xl border-t border-border">
         <form onSubmit={handleSend} className="flex items-center gap-2 max-w-5xl mx-auto">
+          {/* Image/File attach */}
+          <button
+            type="button"
+            className="p-3 hover:bg-accent rounded-2xl text-muted-foreground transition-all duration-200 hover:text-primary shrink-0"
+            onClick={() => fileInputRef.current?.click()}
+            title="Attach image"
+          >
+            <Paperclip className="h-5 w-5" />
+          </button>
+
           {/* Emoji trigger */}
           <div className="relative shrink-0">
             <button
@@ -611,8 +894,9 @@ export default function ChatWindow() {
           {/* Input + char counter */}
           <div className="flex-1 relative">
             <input
+              ref={inputRef}
               type="text"
-              placeholder="Type a message…"
+              placeholder={replyTarget ? `Reply to ${replyTarget.senderName}…` : "Type a message…"}
               className="w-full bg-accent/60 border-2 border-transparent rounded-2xl px-5 py-3.5 text-[14px] font-medium transition-all outline-none focus:border-primary/30 focus:bg-background focus:ring-4 focus:ring-primary/10 placeholder:text-muted-foreground/40"
               value={message}
               onChange={handleTyping}
@@ -628,7 +912,7 @@ export default function ChatWindow() {
           <button
             type="submit"
             disabled={!message.trim()}
-            className="p-3.5 bg-gradient-to-br from-violet-600 to-rose-500 text-white rounded-2xl disabled:opacity-40 disabled:grayscale transition-all shadow-lg shadow-violet-500/25 active:scale-95 hover:shadow-violet-500/40 hover:scale-105 group"
+            className="p-3.5 bg-gradient-to-br from-violet-600 to-rose-500 text-white rounded-2xl disabled:opacity-40 disabled:grayscale transition-all shadow-lg shadow-violet-500/25 active:scale-95 hover:shadow-violet-500/40 hover:scale-105 group shrink-0"
           >
             <Send className="h-5 w-5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
           </button>

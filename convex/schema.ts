@@ -33,8 +33,13 @@ export default defineSchema({
     content: v.string(),
     type: v.union(v.literal("text"), v.literal("image"), v.literal("system")),
     isDeleted: v.boolean(),
+    // New fields
+    editedAt: v.optional(v.number()),       // Timestamp if message was edited
+    replyToId: v.optional(v.id("messages")), // ID of the message being replied to
+    isPinned: v.optional(v.boolean()),       // Whether message is pinned
   })
-    .index("by_conversationId", ["conversationId"]),
+    .index("by_conversationId", ["conversationId"])
+    .index("by_conversationId_pinned", ["conversationId", "isPinned"]),
 
   reactions: defineTable({
     messageId: v.id("messages"),

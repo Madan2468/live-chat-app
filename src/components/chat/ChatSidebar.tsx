@@ -2,7 +2,7 @@
 
 import { UserButton } from "@clerk/nextjs";
 import { useState } from "react";
-import { Plus, Zap } from "lucide-react";
+import { Plus, Zap, Users, Hash, MessagesSquare } from "lucide-react";
 import UserSearch from "./UserSearch";
 import ConversationList from "./ConversationList";
 import CreateGroupModal from "./CreateGroupModal";
@@ -10,8 +10,17 @@ import ThemeToggle from "./ThemeToggle";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 
+type FilterTab = "all" | "groups" | "dms";
+
+const TABS: { id: FilterTab; label: string; icon: React.ElementType }[] = [
+  { id: "all", label: "All", icon: MessagesSquare },
+  { id: "dms", label: "DMs", icon: Users },
+  { id: "groups", label: "Groups", icon: Hash },
+];
+
 export default function ChatSidebar() {
   const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
+  const [activeFilter, setActiveFilter] = useState<FilterTab>("all");
   const allUsers = useQuery(api.users.getUsers);
   const onlineCount = allUsers?.filter((u) => u.isOnline).length ?? 0;
 
@@ -59,9 +68,29 @@ export default function ChatSidebar() {
         <UserSearch />
       </div>
 
+      {/* Filter Tabs */}
+      <div className="flex items-center gap-1 px-3 py-2.5 border-b border-border bg-card/50">
+        {TABS.map(({ id, label, icon: Icon }) => {
+          const isActive = activeFilter === id;
+          return (
+            <button
+              key={id}
+              onClick={() => setActiveFilter(id)}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-all duration-200 ${isActive
+                  ? "bg-primary/15 text-primary border border-primary/25 shadow-sm"
+                  : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                }`}
+            >
+              <Icon className="h-3 w-3" />
+              {label}
+            </button>
+          );
+        })}
+      </div>
+
       {/* Conversation list */}
       <div className="flex-1 overflow-y-auto custom-scrollbar">
-        <ConversationList />
+        <ConversationList filter={activeFilter} />
       </div>
 
       <CreateGroupModal

@@ -6,6 +6,8 @@ import { useParams, useRouter } from "next/navigation";
 import { formatDistanceToNowStrict, isToday, isYesterday, format } from "date-fns";
 import { Users, Hash } from "lucide-react";
 
+type FilterTab = "all" | "groups" | "dms";
+
 function getDateLabel(ts: number) {
   const d = new Date(ts);
   if (isToday(d)) return "Today";
@@ -13,7 +15,7 @@ function getDateLabel(ts: number) {
   return format(d, "MMM d");
 }
 
-export default function ConversationList() {
+export default function ConversationList({ filter = "all" }: { filter?: FilterTab }) {
   const conversations = useQuery(api.conversations.list);
   const { conversationId } = useParams();
   const router = useRouter();
@@ -34,23 +36,46 @@ export default function ConversationList() {
     );
   }
 
-  if (conversations.length === 0) {
+  // Apply filter
+  const filtered = conversations.filter((c) => {
+    if (filter === "groups") return c.isGroup;
+    if (filter === "dms") return !c.isGroup;
+    return true;
+  });
+
+  if (filtered.length === 0) {
+    const emptyLabel =
+      filter === "groups"
+        ? "No group conversations"
+        : filter === "dms"
+          ? "No direct messages"
+          : "No conversations yet";
     return (
       <div className="p-8 text-center flex flex-col items-center gap-4">
         <div className="h-16 w-16 bg-gradient-to-br from-primary/20 to-violet-500/10 rounded-2xl flex items-center justify-center shadow-inner border border-primary/10">
-          <Users className="h-8 w-8 text-primary" />
+          {filter === "groups" ? (
+            <Hash className="h-8 w-8 text-primary" />
+          ) : (
+            <Users className="h-8 w-8 text-primary" />
+          )}
         </div>
         <div>
-          <p className="text-sm font-bold text-foreground">No conversations yet</p>
-          <p className="text-xs text-muted-foreground mt-1">Search for users to start chatting</p>
+          <p className="text-sm font-bold text-foreground">{emptyLabel}</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            {filter === "groups"
+              ? "Create a group with the + button"
+              : filter === "dms"
+                ? "Search for users to start chatting"
+                : "Search for users to start chatting"}
+          </p>
         </div>
       </div>
     );
   }
 
   // Group by date label
-  const grouped: { label: string; items: typeof conversations }[] = [];
-  conversations.forEach((convo) => {
+  const grouped: { label: string; items: typeof filtered }[] = [];
+  filtered.forEach((convo) => {
     const ts = convo.lastMessage?._creationTime ?? convo._creationTime ?? Date.now();
     const label = getDateLabel(ts as number);
     const existing = grouped.find((g) => g.label === label);
@@ -132,13 +157,19 @@ export default function ConversationList() {
                         {displayName}
                       </h4>
                       {convo.lastMessage && (
-                        <span className={`text-[10px] font-semibold shrink-0 ml-1 ${isActive ? "text-white/70" : "text-muted-foreground"}`}>
+                        <span
+                          className={`text-[10px] font-semibold shrink-0 ml-1 ${isActive ? "text-white/70" : "text-muted-foreground"
+                            }`}
+                        >
                           {formatDistanceToNowStrict(convo.lastMessage._creationTime, { addSuffix: false })}
                         </span>
                       )}
                     </div>
                     <div className="flex justify-between items-center gap-2">
-                      <p className={`text-xs truncate font-medium ${isActive ? "text-white/80" : "text-muted-foreground"}`}>
+                      <p
+                        className={`text-xs truncate font-medium ${isActive ? "text-white/80" : "text-muted-foreground"
+                          }`}
+                      >
                         {lastMsgPreview ?? "No messages yet"}
                       </p>
                       {convo.unreadCount > 0 && (
